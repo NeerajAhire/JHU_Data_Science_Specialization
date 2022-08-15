@@ -1,0 +1,193 @@
+---
+title: "Milestone Report - Neeraj Ahire"
+output: html_document
+date: '2022-07-14'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(include = TRUE, warning = FALSE, message = FALSE, cache = TRUE)
+```
+
+# Abstract 
+
+In this milestone report for our word prediction capstone project we are going to perform some EDA to get an idea of our corpus data and evaluate certain metrics. In this project we are going to include only the English_US database. In the EDA we will evaluate and ascertain line counts, word counts, n-gram counts. We shall also state the plans for our prediction algorithm and the shiny app.
+
+## Creating Corpus and Preprocessing
+
+We shall first create a text Corpus using the tm package.
+However, we won't include the entire database and only include a sample to create our Corpus.
+
+First let's create our sample files. We will use only 10% of lines using random sampling.
+
+```{r, eval= FALSE}
+en_US.blogs.sample <- sample(iconv(readLines("en_US.blogs.txt"), from = "UTF-8", to = "ASCII", sub = ""), 90000)
+write(en_US.blogs.sample, "en_US.blogs.sample.txt")
+
+en_US.news.sample <- sample(iconv(readLines("en_US.news.txt"), from = "UTF-8", to = "ASCII", sub = ""), 7800)
+write(en_US.news.sample, "en_US.news.sample.txt")
+
+en_US.twitter.sample <- sample(iconv(readLines("en_US.twitter.txt"), from = "UTF-8", to = "ASCII", sub = ""), 240000)
+write(en_US.twitter.sample, "en_US.twitter.sample.txt")
+
+```
+
+Now, let's create our corpus using all the sample txt files.
+
+```{r}
+library(tm)
+folder <- getwd()
+corpus <- VCorpus(DirSource(directory = folder, pattern = "*sample.txt"))
+summary(corpus)
+```
+
+Now, we shall do some text pre-processing like removing punctuation, numbers, profane words, striping extra whitespace and converting all words to lower case.
+
+```{r}
+corpus <- tm_map(corpus, content_transformer(removePunctuation))
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, content_transformer(tolower))
+profane_words <- read.table("https://www.cs.cmu.edu/~biglou/resources/bad-words.txt")
+corpus <- tm_map(corpus, removeWords, profane_words$V1)
+corpus <- tm_map(corpus, stripWhitespace)
+corpus_tokenized <- corpus
+corpus_tokenized[[1]]$content <- Boost_tokenizer(corpus[[1]]$content)
+corpus_tokenized[[2]]$content <- Boost_tokenizer(corpus[[2]]$content)
+corpus_tokenized[[3]]$content <- Boost_tokenizer(corpus[[3]]$content)
+```
+
+
+## EDA
+
+### Lines counts 
+
+The English database consists of the following three text files, en_US.blogs, en_US.news, en_US.twitter from sources such as blogs, news and twitter respectively.
+
+Let's evaluate line counts for each of our files.
+
+```{r}
+length(readLines("en_US.blogs.txt"))
+length(readLines("en_US.news.txt"))
+length(readLines("en_US.twitter.txt"))
+```
+Hence, lines counts for each of our files are the following,
+en_US.blogs - **899288**
+en_US.news - **77259**
+en_US.twitter - **2360148**
+
+### Unigrams
+
+Lets find out the frequencies of unigrams and total words in our Corpus.
+
+```{r }
+tdm <- TermDocumentMatrix(corpus_tokenized)
+tdm <- as.matrix(tdm)
+frequencies <- sort(rowSums(tdm), decreasing = TRUE)
+word_frequencies <- data.frame(words = names(frequencies), frequency = frequencies)
+row.names(word_frequencies) <- NULL
+head(word_frequencies)
+paste("Total no. of words :", sum(word_frequencies$frequency))
+paste("Total no. of unique words:", length(word_frequencies$words))
+```
+Now, lets make a histogram plot of the words.
+
+```{r}
+library(ggplot2)
+word_frequencies$words <- factor(word_frequencies$words, levels = word_frequencies$words)
+ggplot(word_frequencies[1:30,], aes(x= words, y=frequency)) + geom_bar(stat = "identity") + 
+       theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1), axis.title.x = element_text(vjust=-1.8)) + 
+       labs(title = "Corpora Word Frequencies", x = "Words", y = "Frequency")
+
+```
+We can also plot a wordcloud of the words.
+
+```{r}
+library(wordcloud)
+wordcloud(words = word_frequencies$words, freq = word_frequencies$frequency, min.freq = 1000,
+          max.words=100, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"), scale=c(2,.5))
+
+```
+
+### Bigrams
+
+Now, we shall repeat the same process to get Bigram count and frequencies.
+
+```{r}
+library(RWeka)
+BigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+tdm_bigram <- TermDocumentMatrix(corpus, control = list(tokenize = BigramTokenizer))
+tdm_bigram <- as.matrix(tdm_bigram)
+bigram_freq <- sort(rowSums(tdm_bigram), decreasing = TRUE)
+bigram_frequencies <- data.frame(bigrams = names(bigram_freq), frequency = bigram_freq)
+row.names(bigram_frequencies) <- NULL
+head(bigram_frequencies)
+paste("Total No. of Unique Bigrams: ", length(bigram_frequencies$bigrams) )
+```
+Bigrams histogram.
+
+```{r}
+bigram_frequencies$bigrams <- factor(bigram_frequencies$bigrams, levels = bigram_frequencies$bigrams)
+ggplot(bigram_frequencies[1:30,], aes(x= bigrams, y=frequency)) + geom_bar(stat = "identity") + 
+       theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1), axis.title.x = element_text(vjust=-2)) + 
+       labs(title = "Corpora bigram Frequencies", x = "Bigrams", y = "Frequency")
+
+```
+Bigram wordcloud.
+
+```{r}
+wordcloud(words = bigram_frequencies$bigrams, freq = bigram_frequencies$frequency, min.freq = 100,
+          max.words=100, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"), scale=c(2,.5))
+
+```
+
+### Trigrams
+
+Now, we repeat for Trigrams.
+
+```{r}
+TrigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 3, max = 3))
+tdm_trigram <- TermDocumentMatrix(corpus, control = list(tokenize = TrigramTokenizer))
+tdm_trigram <- as.matrix(tdm_trigram)
+trigram_freq <- sort(rowSums(tdm_trigram), decreasing = TRUE)
+trigram_frequencies <- data.frame(trigrams = names(trigram_freq), frequency = trigram_freq)
+row.names(trigram_frequencies) <- NULL
+head(trigram_frequencies)
+paste("Total No. of Unique Trigrams: ", length(trigram_frequencies$trigrams) )
+```
+
+Trigrams histogram.
+
+```{r}
+trigram_frequencies$trigrams <- factor(trigram_frequencies$trigrams, levels = trigram_frequencies$trigrams)
+ggplot(trigram_frequencies[1:30,], aes(x= trigrams, y=frequency)) + geom_bar(stat = "identity") + 
+       theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1), axis.title.x = element_text(vjust=-2)) + 
+       labs(title = "Corpora trigram Frequencies", x = "Trigrams", y = "Frequency")
+```
+
+Trigrams wordcloud.
+
+```{r}
+wordcloud(words = trigram_frequencies$trigrams, freq = trigram_frequencies$frequency, min.freq = 10,
+          max.words=50, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"), scale=c(2,.5))
+```
+
+### Unique words for coverage
+
+Now, let's calculate Unique words needed to cover 50% and 90% of all word instances in the corpus.
+
+```{r}
+cumm_freq <- cumsum(word_frequencies$frequency)
+cumm_freq <- as.data.frame(cumm_freq)
+
+paste("Unique words for 50% covergae: ", length(cumm_freq[cumm_freq$cumm_freq <= (0.5*3782944),]))
+paste("Unique words for 90% covergae: ", length(cumm_freq[cumm_freq$cumm_freq <= (0.9*3782944),]))
+```
+
+## Plan for algorithm and shiny app
+
+Now, since the EDA part is completed I would move ahead with creating the algorithm for the next word prediction task.
+The Algorithms I would be using would be Stupid backoff (SBO) model and Katz's backoff model (KBO). I will try to implement both of these algorithms and compare their performance.
+
+In the shiny app, I will build a user interface which consists of a tab where a user can input a sentence and click predict and then the top 5 words ranked by probability would be displayed both for sbo and kbo models.
+
+**THANK YOU**
+
