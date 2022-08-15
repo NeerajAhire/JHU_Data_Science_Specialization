@@ -1,0 +1,102 @@
+---
+title: "Extreme weather events that cause the most harm to population health and damage to the economy in USA "
+output: html_document
+---
+
+## Synopsis
+
+In this data analysis project we have tried to evaluate which extreme weather events in the US cause most harm to the population i.e number of fatalities and injuries and which cause a lot of economic damage like property and crop damage.
+
+Date is sourced from - [Storm Data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
+
+We evaluate separately for population harm and economic damage to ascertain which weather events cause the highest impact and make a plot for each respectively.
+
+## Data Processing
+
+First we download data from source and load the csv file as variable ‘storm_data’
+
+```{r}
+library(dplyr)
+library(ggplot2)
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", destfile = 'asg.csv.bz2')
+storm_data <- read.csv('asg.csv.bz2')
+```
+
+## Across the United States, which types of events are most harmful with respect to population health?
+
+For this we first evaluate total of fatalities and injuries for all entries. Then to evaluate which event has the highest harm to population we try to see which weather event has the highest mean of (fatalities+injuries) across all entries. This will tell us that on an occurence on an average basis which event is causing the most (fatalities+injuries)
+
+```{r}
+pop_health_tot <- storm_data[, c("EVTYPE", "FATALITIES", "INJURIES")]
+pop_health_tot$total <- pop_health_tot$FATALITIES + pop_health_tot$INJURIES
+pop_health_tot1 <- pop_health_tot %>% group_by(EVTYPE) %>% summarise(mean(total, na.rm = TRUE))
+colnames(pop_health_tot1)[2] <- "total"
+pop_health_top <- head(pop_health_tot1[order(pop_health_tot1$total, decreasing = TRUE),])
+```
+
+Now we visualize the results.
+
+```{r}
+p <- ggplot(pop_health_top, aes(x = EVTYPE, y = total)) + geom_bar(stat = "identity")+
+       scale_x_discrete(guide = guide_axis(check.overlap = TRUE))+
+       labs(title = "Mean(fatalities + injuries) for different weather events", x= "Event", y = "Mean(fatalities + injuries)")
+p
+```
+
+As we can see that ‘Heat Wave’ causes the most (fatalities + injuries) on an average basis.
+
+## Across the United States, which types of events have the greatest economic consequences?
+
+Here gain we add the property damage and crop damage caused by an event by appropratiely formatting our original data. Then we evaluate which event has the highest total economic damage (property + crops) on an average basis.
+
+```{r}
+propdam <- storm_data[, c("EVTYPE", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP")]
+exp <- c("K", "k", "M", "m", "B", "b")
+propdam_filtr <- propdam %>% filter(PROPDMGEXP %in% exp & CROPDMGEXP %in% exp)
+propdam_filtr1 <- propdam_filtr
+propdam_filtr1 <- propdam_filtr1 %>% mutate(PROPDMG = case_when(PROPDMGEXP %in% c("K","k") ~ PROPDMG*(10^3),
+                                                                PROPDMGEXP %in% c("M","m") ~ PROPDMG*(10^6),
+                                                                PROPDMGEXP %in% c("B","b") ~ PROPDMG*(10^9),
+                                                                TRUE~PROPDMG))
+propdam_filtr1 <- propdam_filtr1 %>% mutate(CROPDMG = case_when(CROPDMGEXP %in% c("K","k") ~ CROPDMG*(10^3),
+                                                                CROPDMGEXP %in% c("M","m") ~ CROPDMG*(10^6),
+                                                                CROPDMGEXP %in% c("B","b") ~ CROPDMG*(10^9),
+                                                                TRUE~CROPDMG))
+
+propdam_filtr1$total <- propdam_filtr1$PROPDMG + propdam_filtr1$CROPDMG
+propdam_factored <- propdam_filtr1 %>% group_by(EVTYPE) %>% summarise(mean(total, na.rm = TRUE))
+colnames(propdam_factored)[2] <- "mean_damage"
+prop_dmg_top <- head(propdam_factored[order(propdam_factored$mean_damage, decreasing = TRUE),])
+```
+
+Now let’s plot the mean total economic damage for each weather event.
+
+```{r}
+t <- ggplot(prop_dmg_top, aes(x = EVTYPE, y = mean_damage)) + geom_bar(stat = "identity") +
+  scale_x_discrete(guide = guide_axis(check.overlap = TRUE))+
+  labs(title = "Mean total economic damage for different weather events", x= "Event", y = "Mean(property + crop damage)")
+t
+```
+
+As we can see that ‘Tornadoes’ have the highest economic damage on an average basis.
+
+## Results
+
+1. The weather event with the greatest harm to popultaion health is ‘Heat Wave’.
+
+2. The weather event with the highest economic damage is ‘Tornadoes’.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
