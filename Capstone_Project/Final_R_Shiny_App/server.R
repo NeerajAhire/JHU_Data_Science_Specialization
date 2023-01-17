@@ -12,27 +12,30 @@ library(stringi)
 library(stringr)
 library(shiny)
 
-word_frequencies_pruned <- readRDS('data/wfp.Rda')
+# Loading preprossed frequences data for n-grams
+word_frequencies_pruned <- readRDS('data/wfp.Rda') 
 bigram_frequencies_pruned <- readRDS('data/bifp.Rda')
 trigram_frequencies_pruned <- readRDS('data/trifp.Rda')
 tetragram_frequencies_pruned <- readRDS('data/tetfp.Rda')
 
-
+# Creating corresponding bigram variables for KBO model 
 bigram_kbo <- bigram_frequencies_pruned
 bigram_kbo$kbo_frequency <- bigram_kbo$frequency - 0.5
 bi_sum <- sum(bigram_kbo$frequency)
 
+# Creating corresponding trigram variables for KBO model
 trigram_kbo <- trigram_frequencies_pruned
 trigram_kbo$kbo_frequency <- trigram_kbo$frequency - 0.5
 tri_sum <- sum(trigram_kbo$frequency)
 
+# Creating corresponding tetragram variables for KBO model
 tetragram_kbo <- tetragram_frequencies_pruned
 tetragram_kbo$kbo_frequency <- tetragram_kbo$frequency - 0.5
 tetra_sum <- sum(tetragram_kbo$frequency)
 
 
 
-
+# Defining SBO Model function
 sbo <- function(sentence, n) {
   if (n == 1) {
     b <- word_frequencies_pruned
@@ -125,7 +128,7 @@ sbo <- function(sentence, n) {
   }           
 }  
 
-
+# Defining function for KBO Model
 kbo <- function(sentence) {
   
   #unigrams
